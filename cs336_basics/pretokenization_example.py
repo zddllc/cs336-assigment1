@@ -2,6 +2,15 @@ import os
 import regex
 from typing import BinaryIO
 
+PAT = r"""'(?i:[sdmt]|ll|ve|re)|
+     [^\r\n\p{L}\p{N}]?+[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]*[\p{Ll}\p{Lm}\p{Lo}\p{M}]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?|
+     [^\r\n\p{L}\p{N}]?+[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}]+[\p{Ll}\p{Lm}\p{Lo}\p{M}]*(?i:'s|'t|'re|'ve|'m|'ll|'d)?|
+     \p{N}{1,3}|
+     ?[^\s\p{L}\p{N}]++[\r\n]*|
+     \s*[\r\n]|
+     \s+(?!\S)|
+     \s+"""
+
 PAT = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}++|\p{N}{1,3}+| ?[^\s\p{L}\p{N}]++[\r\n]*+|\s++$|\s*[\r\n]|\s+(?!\S)|\s"""
 _unused_pat = regex.compile(PAT)
 
@@ -57,8 +66,7 @@ def pre_tokenize_chunk(input_path, chunk) -> dict[str, int]:
     """
     Example pre-tokenization function that counts word frequencies in a chunk.
     """
-    from collections import Counter
-    import re
+    from collections import defaultdict
 
     start = chunk[0]
     end = chunk[1]
@@ -69,9 +77,12 @@ def pre_tokenize_chunk(input_path, chunk) -> dict[str, int]:
         chunk_text = f.read(end - start).decode("utf-8", errors="ignore")
             
         # Simple word tokenizer using regex
-        
-        words = regex.findall(_unused_pat, chunk_text)
-        return dict(Counter(words))
+        ret = defaultdict(int)
+        words = regex.finditer(_unused_pat, chunk_text)
+        for one_word in words:
+            ret[one_word.group().strip()] += 1
+
+        return ret
 
     return {}
 # ## Usage
