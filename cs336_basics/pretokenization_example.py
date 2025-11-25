@@ -2,7 +2,8 @@ import os
 import regex
 from typing import BinaryIO
 
-PAT = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{2,}|[^\r\n\p{L}\p{N}]?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
+PAT = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}++|\p{N}{1,3}+| ?[^\s\p{L}\p{N}]++[\r\n]*+|\s++$|\s*[\r\n]|\s+(?!\S)|\s"""
+_unused_pat = regex.compile(PAT)
 
 def find_chunk_boundaries(
     file: BinaryIO,
@@ -68,7 +69,8 @@ def pre_tokenize_chunk(input_path, chunk) -> dict[str, int]:
         chunk_text = f.read(end - start).decode("utf-8", errors="ignore")
             
         # Simple word tokenizer using regex
-        words = chunk_text.split(" ")
+        
+        words = regex.findall(_unused_pat, chunk_text)
         return dict(Counter(words))
 
     return {}
