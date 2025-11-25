@@ -61,7 +61,7 @@ def find_chunk_boundaries(
     return sorted(set(chunk_boundaries))
 
 
-def pre_tokenize_chunk(input_path, chunk) -> dict[str, int]:
+def pre_tokenize_chunk(input_path, chunk, special_tokens) -> dict[str, int]:
 
     """
     Example pre-tokenization function that counts word frequencies in a chunk.
@@ -70,21 +70,24 @@ def pre_tokenize_chunk(input_path, chunk) -> dict[str, int]:
 
     start = chunk[0]
     end = chunk[1]
-
+    ret = defaultdict(int)
 
     with open(input_path, "rb") as f:
         f.seek(start)
         chunk_text = f.read(end - start).decode("utf-8", errors="ignore")
-            
+
+        for one_special_token in special_tokens:
+            chunk_text = chunk_text.replace(one_special_token, " ")
+
         # Simple word tokenizer using regex
-        ret = defaultdict(int)
         words = regex.finditer(_unused_pat, chunk_text)
         for one_word in words:
-            ret[one_word.group().strip()] += 1
+            ret[one_word.group()] += 1
 
         return ret
 
     return {}
+
 # ## Usage
 # with open(..., "rb") as f:
 #     num_processes = 4
