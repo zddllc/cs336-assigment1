@@ -1,0 +1,58 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+
+            //"program": "./main_api.py",
+            //"args":["./configures/backend_api_configure.txt"]
+
+            //"program": "./main_crawlers.py",
+            //"args":["./configures/crawlers_configure.txt", "run"]
+            //"args":["./configures/crawlers_configure.txt", "update_match", "2023-10-28"]
+            //"args":["./configures/crawlers_configure.txt", "test"]
+            //"args":["./configures/crawlers_configure.txt", "soccercatch_data", "0"]
+            //"args":["./configures/crawlers_configure.txt", "lottery"]
+            //"args":["./configures/crawlers_configure.txt", "highlights_data"]
+            //"args":["./configures/crawlers_configure.txt", "goalplayer_data", "1"]
+            //"args":["./configures/crawlers_configure.txt", "teamlogo"]
+            
+            "program": "./main.py",
+            //"args":["./configures/backend_app_configure.txt", "SaveData"]
+            "args":["./configures/backend_app_configure.txt", "TaskTransformerDev"]
+            //"args":["./configures/backend_app_configure.txt", "TaskDownloaderDev"]
+            //"args":["./configures/backend_app_configure.txt", "DownloadYoutubeTikTokSubscriptionDev"]
+            //"args":["./configures/backend_app_configure.txt", "CleanFiles"]
+            //"args":["./configures/backend_app_configure.txt", "TTS"]
+            //"args":["./configures/backend_app_configure.txt", "CostEval"]
+            //"args":["./configures/backend_app_configure.txt", "TopTenDev"]
+            //"args":["./configures/backend_app_configure.txt", "SubtitleVideoExportDev"]
+            //"args":["./configures/backend_app_configure.txt", "DownloadTeamLogo"]
+            //"args":["./configures/backend_app_configure.txt", "GeneralizedASR"]
+            //"args":["./configures/backend_app_configure.txt", "MergeMatches"]
+            //"args":["./configures/backend_app_configure.txt", "CollectDataDev"]
+
+            //"program": "./main_lottery_crawlers.py",
+            //"args":["./configures/lottery_crawlers_configure.txt", "exp"]
+            //"args":["./configures/lottery_crawlers_configure.txt", "update_match", "2024-04-22"]
+            //"args":["./configures/lottery_crawlers_configure.txt", "run"]
+            //"args":["./configures/lottery_crawlers_configure.txt", "structure"]
+            //"args":["./configures/lottery_crawlers_configure.txt", "web_run"]
+            //"args":["./configures/lottery_crawlers_configure.txt", "picks", "0"]
+            //"args":["./configures/lottery_crawlers_configure.txt", "picks", "1"]
+            //"args":["./configures/lottery_crawlers_configure.txt", "pics"]
+            //"args":["./configures/lottery_crawlers_configure.txt", "daily"]
+            //"args":["./configures/lottery_crawlers_configure.txt", "jc"]
+            
+            //"program": "./apps/scripts/to_mainland.py",
+            //"program": "./apps/scripts/backend_jobs/backup_soccercatch_data.py",
+            //"args":["t"]
+        }
+    ]
+}
