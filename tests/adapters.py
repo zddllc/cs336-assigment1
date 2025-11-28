@@ -592,38 +592,8 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    from cs336_basics.pretokenization_example import find_chunk_boundaries, pre_tokenize_chunk
-    from collections import defaultdict
+    from cs336_basics.bpe import BPETokenizer
 
-    num_processes = 16
-    with open(input_path, "rb") as f:
-        boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
-
-        # The following is a serial implementation, but you can parallelize this
-        # by sending each start/end pair to a set of processes.
-
-        chunks = []
-        for start, end in zip(boundaries[:-1], boundaries[1:]):
-            chunks.append((start, end))
-            # f.seek(start)
-            # chunk = f.read(end - start).decode("utf-8", errors="ignore")
-
-        final_dict = defaultdict(int)
-
-        pool = multiprocessing.Pool(processes=num_processes)
-        all_results = []
-        for c in chunks:
-            args = (input_path, c, special_tokens)
-            res = pool.apply_async(pre_tokenize_chunk, args=args, )
-            all_results.append(res)
-
-        for one_result in all_results:
-            output = one_result.get()
-            for k, v in output.items():
-                final_dict[k] += v
-
-        pool.close()
-        pool.join()
-
-    print(len(final_dict))
-    raise NotImplementedError
+    tokenizer = BPETokenizer(input_path=input_path, vocab_size=vocab_size, model_dir="", special_tokens=special_tokens)
+    vocab, merges = tokenizer.train()
+    return vocab, merges

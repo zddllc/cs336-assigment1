@@ -12,6 +12,8 @@ PAT = r"""'(?i:[sdmt]|ll|ve|re)|
      \s+"""
 
 PAT = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}++|\p{N}{1,3}+| ?[^\s\p{L}\p{N}]++[\r\n]*+|\s++$|\s*[\r\n]|\s+(?!\S)|\s"""
+
+PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 _unused_pat = regex.compile(PAT)
 
 def find_chunk_boundaries(
@@ -77,12 +79,11 @@ def pre_tokenize_chunk(input_path, chunk, special_tokens) -> dict[str, int]:
         chunk_text = f.read(end - start).decode("utf-8", errors="ignore")
 
         for one_special_token in special_tokens:
-            chunk_text = chunk_text.replace(one_special_token, " ")
+            chunk_text = chunk_text.replace(one_special_token, "")
 
-        # Simple word tokenizer using regex
         words = regex.finditer(_unused_pat, chunk_text)
-        for one_word in words:
-            ret[one_word.group()] += 1
+        for one_token in words:
+            ret[one_token.group()] += 1
 
         return ret
 
