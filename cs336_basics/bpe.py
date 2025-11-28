@@ -48,7 +48,8 @@ def split_by_special(text, special_tokens, drop_special=True):
     special_tokens = sorted(special_tokens, key=len, reverse=True)
 
     pattern = "|".join(re.escape(tok) for tok in special_tokens)
-    if not drop_special: pattern = f"({pattern})"
+    if not drop_special: 
+        pattern = f"({pattern})"
 
     pattern = re.compile(pattern)
     chunks = pattern.split(text)
@@ -115,7 +116,7 @@ def pre_tokenize_chunk(input_path, chunk, special_tokens) -> dict[str, int]:
 
     with open(input_path, "rb") as f:
         f.seek(start)
-        
+
         chunk_text = f.read(end - start).decode("utf-8", errors="ignore")
         chunks = split_by_special(chunk_text, special_tokens)
 
@@ -144,17 +145,26 @@ class PreToken(object):
 
 class BPETokenizer(object):
 
-    def __init__(self, input_path, vocab_size, model_dir, special_tokens):
+    def __init__(self, vocab_size, special_tokens):
 
-        self.input_path = input_path
+        self.input_path = None
         self.vocab_size = vocab_size
-        self.model_dir = model_dir
-        self.special_tokens = special_tokens
+        self.special_tokens = special_tokens if special_tokens is not None else []
+
+        self.vocab_path = None
+        self.merge_path = None
 
         self.vocab = {}
-        self.merge = []
+        self.vocab_byte2index = {}
 
-    def train(self):
+        self.merge = []
+        self.merge_byte2index = {}
+
+    def train(self, input_path, vocab_path, merge_path):
+
+        self.input_path = input_path
+        self.vocab_path = vocab_path
+        self.merge_path = merge_path
 
         merges = []
         merges_out = []
@@ -227,13 +237,12 @@ class BPETokenizer(object):
             self.update_pair_count_and_pair_index(pair_count, pair_index, select_top_pair, vocab, vocab_out, vocab_index, merges, merges_out)
             vocab_index += 1
         
-        f = codecs.open("vocab.json", "w", encoding="utf-8")
+        f = codecs.open(self.vocab_path, "w", encoding="utf-8")
         f.write(json.dumps(vocab_out, ensure_ascii=False, indent=4))
         f.close()
 
-        f = codecs.open("merge.json", "w", encoding="utf-8")
-        for item in merges_out:
-            f.write(item + "\n")
+        f = codecs.open(self.merge_path, "w", encoding="utf-8")
+        f.write(json.dumps(merges_out, ensure_ascii=False, indent=4))
         f.close()
 
         return vocab, merges
@@ -344,3 +353,102 @@ class BPETokenizer(object):
 
         if top_pair in pair_index:
             del pair_index[top_pair]
+
+    def from_memory(self, vocab, merge, special_tokens):
+
+        self.vocab = vocab
+        self.merge = merge
+        self.special_tokens = special_tokens if special_tokens is not None else []
+
+        for index, one_merge in enumerate(self.merge):
+            self.merge_byte2index[one_merge] = index
+
+        for index, one_vocab in self.vocab.items():
+            self.vocab_byte2index[one_vocab] = index
+
+    def from_files(self, vocab_path, merge_path, special_tokens):
+    
+        self.vocab_path = vocab_path
+        self.merge_path = merge_path
+        self.special_tokens = special_tokens if special_tokens is not None else []
+
+        with open(self.vocab_path, "r", encoding="utf-8") as f:
+            vocab_json = json.load(f)
+            for k, v in vocab_json.items():
+                self.vocab[int(k)] = v.encode("utf-8", errors="ignore")
+                self.vocab_byte2index[v.encode("utf-8", errors="ignore")] = int(k)
+
+        with open(self.merge_path, "r", encoding="utf-8") as f:
+            merge_json = json.load(f)
+            for one_merge_str in merge_json:
+                token_strs = one_merge_str.split(" ")
+                token_bytes = (b"".join(bytes([int(printable_dict.index(c))]) if c in printable_dict.values() else c.encode("utf-8") for c in token_strs[0].split()), 
+                            b"".join(bytes([int(printable_dict.index(c))]) if c in printable_dict.values() else c.encode("utf-8") for c in token_strs[1].split()))
+                self.merge.append(token_bytes)
+                self.merge_byte2index[token_bytes] = len(self.merge_byte2index)
+
+    def encode(self, text):
+
+        chunks = split_by_special(text, self.special_tokens, False)
+
+        ret_id = []
+        for one_chunk in chunks:
+            if one_chunk in self.special_tokens:
+                ret_id.append(self.vocab_byte2index[one_chunk.encode("utf-8", errors="ignore")])
+            else:
+
+                pre_tokens = regex.finditer(_unused_pat, one_chunk)
+                for one_token in pre_tokens:
+
+                    token_bytes = tuple(bytes([b]) for b in one_token.group().encode("utf-8", errors="ignore"))
+                    while True:
+
+                        all_pontential_tokens = []
+                        for index in range(len(token_bytes) - 1):
+                            pair = (token_bytes[index], token_bytes[index + 1])
+                            if pair in self.merge_byte2index:
+                                all_pontential_tokens.append([(token_bytes[index], token_bytes[index + 1]), self.merge_byte2index[pair]])
+
+                        if len(all_pontential_tokens) == 0:
+                            break
+
+                        pair2merge = sorted(all_pontential_tokens, key=lambda x: x[1])[0][0]
+
+                        new_token_bytes = []
+                        index = 0
+                        while index < len(token_bytes):
+                            if index == len(token_bytes) - 1:
+                                new_token_bytes.append(token_bytes[index])
+                                index += 1
+                            else:
+                                if (token_bytes[index], token_bytes[index + 1]) == pair2merge:
+                                    new_token_bytes.append(token_bytes[index] + token_bytes[index + 1])
+                                    index += 2
+                                else:
+                                    new_token_bytes.append(token_bytes[index])
+                                    index += 1
+
+                        token_bytes = tuple(new_token_bytes)
+
+                    token_bytes = list(token_bytes)
+                    for one_token in token_bytes:
+                        token_id = self.vocab_byte2index[one_token]
+                        ret_id.append(token_id)
+
+        return ret_id
+    
+    def encode_iterable(self, texts):
+
+        for one_text in texts:
+            arr = self.encode(one_text)
+            for one_id in arr:
+                yield one_id
+    
+    def decode(self, ids):
+
+        ret_bytes = b""
+        for one_id in ids:
+            token_bytes = self.vocab[one_id]
+            ret_bytes += token_bytes
+
+        return ret_bytes.decode("utf-8", errors="replace")
