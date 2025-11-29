@@ -1,5 +1,7 @@
 import torch
 
+from einops import rearrange
+
 def truncated_normal(tensor, din, dout):
 
     """Initialize a tensor with values drawn from a truncated normal distribution.
