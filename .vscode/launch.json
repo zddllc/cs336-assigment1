@@ -10,10 +10,10 @@
             "request": "launch",
             "console": "integratedTerminal",
 
-            "module": "pytest",
-            "args": ["-k", "test_train_bpe", "-vv"],
+            //"module": "pytest",
+            //"args": ["-k", "test_train_bpe", "-vv"],
 
-            //"program": "./main.py",
+            "program": "./main.py",
             //"args":["t"]
         }
     ]
