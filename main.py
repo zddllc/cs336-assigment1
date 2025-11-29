@@ -2,10 +2,12 @@ from tests.adapters import run_train_bpe
 import json
 import codecs
 import torch
+from einops import rearrange, einsum
 
 if __name__ == '__main__':
 
     from cs336_basics.bpe import split_by_special
-    from cs336_basics.linear import LinearModule
-    ll = LinearModule(10, 5, "cpu", torch.float32)
-    split_by_special("Hello<|endoftext|>World<|startoftext|>fuck", ["<|endoftext|>", "<|startoftext|>"], False)
+    mask = torch.tril(torch.ones((8, 8), dtype=torch.bool, device="cpu"))
+    dd = rearrange(mask, "i (m n) -> i n m", m=4)
+    print(dd)
+

@@ -152,7 +152,17 @@ def run_multihead_self_attention(
         Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    from cs336_basics.module import MultiHeadAttentionModule
+    max_seq_len = in_features.shape[-2]
+    mha = MultiHeadAttentionModule(d_model, num_heads, max_seq_len, None, "cpu", torch.float32)
+    mha.assign_weight(q_proj_weight, k_proj_weight, v_proj_weight, o_proj_weight)
+    # mha.load_state_dict({
+    #     "q_proj.weight": q_proj_weight,
+    #     "k_proj.weight": k_proj_weight,
+    #     "v_proj.weight": v_proj_weight,
+    #     "o_proj.weight": o_proj_weight,
+    # })
+    return mha.forward(in_features)
 
 
 def run_multihead_self_attention_with_rope(
@@ -192,7 +202,11 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    from cs336_basics.module import MultiHeadAttentionModule
+    max_seq_len = in_features.shape[-2]
+    mha = MultiHeadAttentionModule(d_model, num_heads, max_seq_len, theta, "cpu", torch.float32)
+    mha.assign_weight(q_proj_weight, k_proj_weight, v_proj_weight, o_proj_weight)
+    return mha.forward(in_features, token_positions)
 
 
 def run_rope(
@@ -289,7 +303,13 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    raise NotImplementedError
+    from cs336_basics.module import TransformerBlockModule
+    tb = TransformerBlockModule(d_model, num_heads, d_ff, max_seq_len, theta, "cpu", torch.float32)
+    tb.assign_weight(weights)
+    B, S, _ = in_features.shape
+    positions = torch.arange(S, device="cpu").expand(B, S)  # (B, S)
+    return tb.forward(in_features, positions)
+
 
 
 def run_transformer_lm(
@@ -371,8 +391,11 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
 
+    from cs336_basics.module import TransformerLMModule
+    tlm = TransformerLMModule(vocab_size, context_length, d_model, num_layers, num_heads, d_ff, rope_theta, "cpu", torch.float32)
+    tlm.assign_weight(weights)
+    return tlm.forward(in_indices)
 
 def run_rmsnorm(
     d_model: int,
@@ -412,7 +435,7 @@ def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
         Float[Tensor,"..."]: of with the same shape as `in_features` with the output of applying
         SiLU to each element.
     """
-    raise NotImplementedError
+    return in_features * torch.sigmoid(in_features)
 
 
 def run_get_batch(

@@ -203,7 +203,7 @@ class AttentionModule(torch.nn.Module):
     def forward(self, Q, K, V, mask):
 
         d_k = Q.shape[-1]
-        qk = einsum(Q, K, "b m d_k, b n d_k -> b m n")
+        qk = einsum(Q, K, "... m d_k, ... n d_k -> ... m n")
         scaled_qk = qk / (d_k ** 0.5)
         
         final_mask = torch.zeros_like(mask, dtype=torch.float)
@@ -213,8 +213,171 @@ class AttentionModule(torch.nn.Module):
         softmax_module = SoftmaxModule()
         softmax_qk = softmax_module.forward(scaled_qk, dim=-1)
         
-        attetion = einsum(softmax_qk, V, "b m n, b n d_k -> b m d_k")
+        attetion = einsum(softmax_qk, V, "... m n, ... n d_k -> ... m d_k")
 
         return attetion
 
+
+class MultiHeadAttentionModule(torch.nn.Module):
+
+    def __init__(self, d_model, num_heads, max_seq_len, rope_theta, device=None, dtype=None):
+
+        super(MultiHeadAttentionModule, self).__init__()
+
+        assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_k = d_model // num_heads
+        self.d_v = self.d_k  # match d_k for simplicity
+        self.max_seq_len = max_seq_len
+        # self.q_proj, self.k_proj, self.v_proj, self.o_proj = [LinearModule(d_model, d_model, device=device, dtype=dtype) for _ in range(4)]
+
+        self.attn = AttentionModule()
+        self.mask = torch.tril(torch.ones(max_seq_len, max_seq_len, dtype=torch.bool, device=device))
+        self.register_buffer("causal_mask", self.mask.unsqueeze(0).unsqueeze(0), persistent=False)
+
+        if rope_theta is None:
+            rope_theta = 10000
+        
+        self.rope = RotaryPositionalEmbedding(
+            theta=rope_theta,
+            max_seq_len=max_seq_len,
+            d_k=self.d_k,
+            device=device,
+            dtype=dtype
+        )
        
+    def assign_weight(self, q_proj_weight, k_proj_weight, v_proj_weight, o_proj_weight):
+
+        # self.q_proj.assign_weight(q_proj_weight)
+        # self.k_proj.assign_weight(k_proj_weight)
+        # self.v_proj.assign_weight(v_proj_weight)
+        # self.o_proj.assign_weight(o_proj_weight)
+
+        self.q_weight = torch.nn.Parameter(q_proj_weight)
+        self.k_weight = torch.nn.Parameter(k_proj_weight)
+        self.v_weight = torch.nn.Parameter(v_proj_weight)
+        self.o_weight = torch.nn.Parameter(o_proj_weight)
+
+    def forward(self, x, token_positions=None):
+
+        # Project to multi-head Q, K, V
+        # q,k,v = [rearrange(proj(x), "b s (h d) -> b h s d", h=self.num_heads) 
+        #          for proj in [self.q_proj, self.k_proj, self.v_proj]]
+
+        B, S, _ = x.shape
+
+        q = einsum(self.q_weight, x, "... hd d, ... d ->  ... hd")
+        k = einsum(self.k_weight, x, "... hd d, ... d ->  ... hd")
+        v = einsum(self.v_weight, x, "... hd d, ... d ->  ... hd")
+
+        q = rearrange(q, "b s (h d) -> b h s d", h=self.num_heads)
+        k = rearrange(k, "b s (h d) -> b h s d", h=self.num_heads)
+        v = rearrange(v, "b s (h d) -> b h s d", h=self.num_heads)
+
+        # Apply RoPE to Q and K if enabled
+        if token_positions is not None: 
+            q,k = self.rope(q, token_positions), self.rope(k, token_positions)
+
+        #  Compute attention
+        out = self.attn(q, k, v, mask=self.causal_mask[..., :S, :S])
+
+        # Merge heads and project
+        out = rearrange(out, "b h s d -> b s (h d)")
+        o = einsum(self.o_weight, out, "dh m, b s m -> b s dh")
+        return o
+    
+class TransformerBlockModule(torch.nn.Module):
+
+    def __init__(self, d_model, n_heads, d_ff, max_seq_len, rope_theta, device=None, dtype=None):
+
+        super(TransformerBlockModule, self).__init__()
+
+        self.attn_module = MultiHeadAttentionModule(d_model, n_heads, max_seq_len, rope_theta, device=device, dtype=dtype)
+        self.rmsnorm1 = RMSNormModule(d_model, device=device, dtype=dtype)
+        self.ffn_module = FeedforwardModule(d_model, d_ff, device=device, dtype=dtype)
+        self.rmsnorm2 = RMSNormModule(d_model, device=device, dtype=dtype)
+
+    def assign_weight(self, weights):
+
+        self.attn_module.assign_weight(weights["attn.q_proj.weight"], weights["attn.k_proj.weight"], weights["attn.v_proj.weight"], weights["attn.output_proj.weight"])
+        self.ffn_module.assign_weight(weights["ffn.w1.weight"], weights["ffn.w2.weight"], weights["ffn.w3.weight"])
+        self.rmsnorm1.assign_weight(weights["ln1.weight"])
+        self.rmsnorm2.assign_weight(weights["ln2.weight"])
+
+    def forward(self, x, token_positions=None):
+
+        attn_out = self.attn_module.forward(self.rmsnorm1.forward(x), token_positions=token_positions)
+        x = x + attn_out
+        ffn_out = self.ffn_module.forward(self.rmsnorm2.forward(x))
+        x = x + ffn_out
+        return x
+    
+class TransformerLMModule(torch.nn.Module):
+
+    def __init__(self, vocab_size, context_length, d_model, num_layers, num_heads, d_ff, rope_theta=None, device=None, dtype=None):
+
+        super(TransformerLMModule, self).__init__()
+    
+        self.vocab_size = vocab_size
+        self.context_length = context_length
+        self.d_model = d_model
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.d_ff = d_ff
+        self.rope_theta = rope_theta if rope_theta is not None else 10000
+
+        self.embedding_layer = EmbeddingModule(vocab_size, d_model, device=device, dtype=dtype)
+        self.layers = torch.nn.ModuleList([TransformerBlockModule(d_model, num_heads, d_ff, context_length, rope_theta, "cpu", torch.float32) for _ in range(num_layers)])
+        self.final_norm = RMSNormModule(d_model, device=device, dtype=dtype)
+        self.lm_head = LinearModule(d_model, vocab_size, device=device, dtype=dtype)
+
+        pass
+
+    def assign_weight(self, weights):
+
+        self.embedding_layer.assign_weight(weights["token_embeddings.weight"])
+        
+        for i in range(self.num_layers):
+            q_key_str = "layers.%d.attn.q_proj.weight" % i
+            k_key_str = "layers.%d.attn.k_proj.weight" % i
+            v_key_str = "layers.%d.attn.v_proj.weight" % i
+            o_key_str = "layers.%d.attn.output_proj.weight" % i
+            ln1_key_str = "layers.%d.ln1.weight" % i
+            w1_key_str = "layers.%d.ffn.w1.weight" % i
+            w2_key_str = "layers.%d.ffn.w2.weight" % i
+            w3_key_str = "layers.%d.ffn.w3.weight" % i
+            ln2_key_str = "layers.%d.ln2.weight" % i
+            
+            layer_weights = {}
+            layer_weights[".".join(q_key_str.split('.')[2:])] = weights[q_key_str]
+            layer_weights[".".join(k_key_str.split('.')[2:])] = weights[k_key_str]
+            layer_weights[".".join(v_key_str.split('.')[2:])] = weights[v_key_str]
+            layer_weights[".".join(o_key_str.split('.')[2:])] = weights[o_key_str]
+            layer_weights[".".join(ln1_key_str.split('.')[2:])] = weights[ln1_key_str]
+            layer_weights[".".join(w1_key_str.split('.')[2:])] = weights[w1_key_str]
+            layer_weights[".".join(w2_key_str.split('.')[2:])] = weights[w2_key_str]
+            layer_weights[".".join(w3_key_str.split('.')[2:])] = weights[w3_key_str]
+            layer_weights[".".join(ln2_key_str.split('.')[2:])] = weights[ln2_key_str]
+
+            self.layers[i].assign_weight(layer_weights)
+
+        self.final_norm.assign_weight(weights["ln_final.weight"])
+        self.lm_head.assign_weight(weights["lm_head.weight"])
+        
+        pass
+
+    def forward(self, token_ids):
+
+        b, s = token_ids.shape
+        x = self.embedding_layer.forward(token_ids)
+
+        token_positions = torch.arange(s).unsqueeze(0).expand(b, s)
+
+        for layer in self.layers:
+            x = layer.forward(x, token_positions=token_positions)
+
+        x = self.final_norm.forward(x)
+        logits = self.lm_head.forward(x)
+
+        return logits
