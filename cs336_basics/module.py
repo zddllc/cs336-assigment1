@@ -1,8 +1,9 @@
 import torch
 
-from einops import rearrange, einsum
 from cs336_basics.utils import truncated_normal, softmax
+from einops import rearrange, einsum
 from jaxtyping import Float, Int
+
 
 class LinearModule(torch.nn.Module):
 
@@ -260,6 +261,7 @@ class MultiHeadAttentionModule(torch.nn.Module):
         # Merge heads and project
         out = rearrange(out, "b h s d -> b s (h d)")
         o = einsum(self.o_weight, out, "dh m, b s m -> b s dh")
+        
         return o
     
 class TransformerBlockModule(torch.nn.Module):

@@ -11,7 +11,7 @@
             "console": "integratedTerminal",
 
             "module": "pytest",
-            "args": ["-k", "test_nn_utils", "-vv"],
+            "args": ["-k", "test_optimizer", "-vv"],
 
             //"program": "./main.py",
             //"args":["t"]

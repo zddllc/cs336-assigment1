@@ -90,12 +90,11 @@ def run_swiglu(
     # swiglu.w1.weight.data = w1_weight
     # swiglu.w2.weight.data = w2_weight
     # swiglu.w3.weight.data = w3_weight
+
     from cs336_basics.module import FeedforwardModule
     ff = FeedforwardModule(d_model, d_ff, "cpu", torch.float32)
     ff.assign_weight(w1_weight, w2_weight, w3_weight)
     return ff.forward(in_features)
-
-    raise NotImplementedError
 
 
 def run_scaled_dot_product_attention(
@@ -156,12 +155,6 @@ def run_multihead_self_attention(
     max_seq_len = in_features.shape[-2]
     mha = MultiHeadAttentionModule(d_model, num_heads, max_seq_len, None, "cpu", torch.float32)
     mha.assign_weight(q_proj_weight, k_proj_weight, v_proj_weight, o_proj_weight)
-    # mha.load_state_dict({
-    #     "q_proj.weight": q_proj_weight,
-    #     "k_proj.weight": k_proj_weight,
-    #     "v_proj.weight": v_proj_weight,
-    #     "o_proj.weight": o_proj_weight,
-    # })
     return mha.forward(in_features)
 
 
@@ -506,14 +499,16 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
-    raise NotImplementedError
+    from cs336_basics.optimizer import gradient_clipping
+    return gradient_clipping(parameters, max_l2_norm)
 
 
 def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    raise NotImplementedError
+    from cs336_basics.optimizer import AdamW
+    return AdamW
 
 
 def run_get_lr_cosine_schedule(
@@ -541,7 +536,9 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
-    raise NotImplementedError
+    from cs336_basics.optimizer import get_lr_cosine_schedule
+    return get_lr_cosine_schedule(it, max_learning_rate, min_learning_rate, warmup_iters, cosine_cycle_iters)
+
 
 
 def run_save_checkpoint(
