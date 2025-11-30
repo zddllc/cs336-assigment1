@@ -1,7 +1,7 @@
 import torch
 
 from einops import rearrange, einsum
-from cs336_basics.utils import truncated_normal
+from cs336_basics.utils import truncated_normal, softmax
 from jaxtyping import Float, Int
 
 class LinearModule(torch.nn.Module):
@@ -169,30 +169,7 @@ class RotaryPositionalEmbedding(torch.nn.Module):
         out[..., ::2] = out_even
         out[..., 1::2] = out_odd
         return out
-    
-class SoftmaxModule(torch.nn.Module):
 
-    def __init__(self):
-
-        super(SoftmaxModule, self).__init__()
-
-    def forward(self, x, dim):
-
-
-        #步骤1: 在指定维度上找到最大值，保持维度以便广播
-        x_max = x.max(dim=dim, keepdim=True).values
-        
-        # 步骤2: 减去最大值（数值稳定性关键）
-        x_shifted = x - x_max
-        
-        # 步骤3: 计算 exp
-        exp_x = torch.exp(x_shifted)
-        
-        # 步骤4: 归一化
-        sum_exp = exp_x.sum(dim=dim, keepdim=True)
-        softmax_x = exp_x / sum_exp
-        
-        return softmax_x
     
 class AttentionModule(torch.nn.Module):
 
@@ -210,9 +187,7 @@ class AttentionModule(torch.nn.Module):
         final_mask = final_mask.masked_fill(mask == False, float('-inf'))
         scaled_qk = scaled_qk + final_mask
 
-        softmax_module = SoftmaxModule()
-        softmax_qk = softmax_module.forward(scaled_qk, dim=-1)
-        
+        softmax_qk = softmax(scaled_qk, dim=-1)        
         attetion = einsum(softmax_qk, V, "... m n, ... n d_k -> ... m d_k")
 
         return attetion

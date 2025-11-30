@@ -474,10 +474,8 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    from cs336_basics.module import SoftmaxModule
-    sm = SoftmaxModule()
-    return sm.forward(in_features, dim)
-    raise NotImplementedError
+    from cs336_basics.utils import softmax, softmax2
+    return softmax2(in_features, dim)
 
 
 def run_cross_entropy(
@@ -495,7 +493,8 @@ def run_cross_entropy(
     Returns:
         Float[Tensor, ""]: The average cross-entropy loss across examples.
     """
-    raise NotImplementedError
+    from cs336_basics.utils import cross_entropy
+    return cross_entropy(inputs, targets)
 
 
 def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float) -> None:
