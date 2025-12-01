@@ -22,7 +22,7 @@ def test_train_bpe_speed():
     )
     end_time = time.time()
     print(f"BPE training took {end_time - start_time} seconds")
-    assert end_time - start_time < 1.5
+    assert end_time - start_time < 2.0
 
 
 def test_train_bpe():

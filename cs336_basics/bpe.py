@@ -118,6 +118,7 @@ def pre_tokenize_chunk(input_path, chunk, special_tokens) -> dict[str, int]:
         f.seek(start)
 
         chunk_text = f.read(end - start).decode("utf-8", errors="ignore")
+        chunk_text = chunk_text.replace("\r\n", "\n").replace("\r", "")
         chunks = split_by_special(chunk_text, special_tokens)
 
         for chunk_text in chunks:

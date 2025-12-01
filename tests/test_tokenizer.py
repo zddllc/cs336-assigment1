@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-import resource
+
 import sys
 
 import psutil
@@ -16,19 +16,52 @@ VOCAB_PATH = FIXTURES_PATH / "gpt2_vocab.json"
 MERGES_PATH = FIXTURES_PATH / "gpt2_merges.txt"
 
 
+try:
+    import resource
+except ImportError:
+    resource = None
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
+
+
 def memory_limit(max_mem):
+    """
+    Decorator to enforce a maximum memory limit.
+    - Linux/macOS: uses resource.setrlimit(RLIMIT_AS)
+    - Windows: resource is not available; decorator becomes a no-op
+    """
+
     def decorator(f):
+
+        # If on Windows or resource missing → return f unchanged
+        if resource is None or sys.platform == "win32":
+            def windows_wrapper(*args, **kwargs):
+                return f(*args, **kwargs)
+            return windows_wrapper
+
+        # Unix-like → enable real memory limit
         def wrapper(*args, **kwargs):
-            process = psutil.Process(os.getpid())
+            proc = psutil.Process(os.getpid()) if psutil else None
+
+            # Current memory usage in bytes
+            current_mem = proc.memory_info().rss if proc else 0
+
+            # Previous RLIMIT_AS
             prev_limits = resource.getrlimit(resource.RLIMIT_AS)
-            resource.setrlimit(resource.RLIMIT_AS, (process.memory_info().rss + max_mem, -1))
+
+            # New memory limit
+            new_limit = current_mem + max_mem
+
+            # Apply limit
+            resource.setrlimit(resource.RLIMIT_AS, (new_limit, -1))
+
             try:
-                result = f(*args, **kwargs)
-                return result
+                return f(*args, **kwargs)
             finally:
-                # Even if the function above fails (e.g., it exceeds the
-                # memory limit), reset the memory limit back to the
-                # previous limit so other tests aren't affected.
+                # Restore previous limit
                 resource.setrlimit(resource.RLIMIT_AS, prev_limits)
 
         return wrapper
@@ -45,7 +78,7 @@ def get_tokenizer_from_vocab_merges_path(
     with open(vocab_path) as vocab_f:
         gpt2_vocab = json.load(vocab_f)
     gpt2_bpe_merges = []
-    with open(merges_path) as f:
+    with open(merges_path, "r", encoding="utf-8") as f:
         for line in f:
             cleaned_line = line.rstrip()
             if cleaned_line and len(cleaned_line.split(" ")) == 2:
@@ -325,7 +358,7 @@ def test_tinystories_sample_roundtrip():
         vocab_path=VOCAB_PATH,
         merges_path=MERGES_PATH,
     )
-    with open(FIXTURES_PATH / "tinystories_sample.txt") as f:
+    with open(FIXTURES_PATH / "tinystories_sample.txt", "r", encoding="utf-8") as f:
         corpus_contents = f.read()
 
     ids = tokenizer.encode(corpus_contents)
@@ -338,7 +371,7 @@ def test_tinystories_matches_tiktoken():
         vocab_path=VOCAB_PATH, merges_path=MERGES_PATH, special_tokens=["<|endoftext|>"]
     )
     corpus_path = FIXTURES_PATH / "tinystories_sample.txt"
-    with open(corpus_path) as f:
+    with open(corpus_path, "r", encoding="utf-8") as f:
         corpus_contents = f.read()
     reference_ids = reference_tokenizer.encode(corpus_contents, allowed_special={"<|endoftext|>"})
     ids = tokenizer.encode(corpus_contents)
@@ -386,10 +419,10 @@ def test_encode_iterable_tinystories_sample_roundtrip():
         merges_path=MERGES_PATH,
     )
     all_ids = []
-    with open(FIXTURES_PATH / "tinystories_sample.txt") as f:
+    with open(FIXTURES_PATH / "tinystories_sample.txt", "r", encoding="utf-8") as f:
         for _id in tokenizer.encode_iterable(f):
             all_ids.append(_id)
-    with open(FIXTURES_PATH / "tinystories_sample.txt") as f:
+    with open(FIXTURES_PATH / "tinystories_sample.txt", "r", encoding="utf-8") as f:
         corpus_contents = f.read()
     assert tokenizer.decode(all_ids) == corpus_contents
 
@@ -400,11 +433,11 @@ def test_encode_iterable_tinystories_matches_tiktoken():
         vocab_path=VOCAB_PATH, merges_path=MERGES_PATH, special_tokens=["<|endoftext|>"]
     )
     corpus_path = FIXTURES_PATH / "tinystories_sample.txt"
-    with open(corpus_path) as f:
+    with open(corpus_path, "r", encoding="utf-8") as f:
         corpus_contents = f.read()
     reference_ids = reference_tokenizer.encode(corpus_contents, allowed_special={"<|endoftext|>"})
     all_ids = []
-    with open(FIXTURES_PATH / "tinystories_sample.txt") as f:
+    with open(FIXTURES_PATH / "tinystories_sample.txt", "r", encoding="utf-8") as f:
         for _id in tokenizer.encode_iterable(f):
             all_ids.append(_id)
     assert all_ids == reference_ids
