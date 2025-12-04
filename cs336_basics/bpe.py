@@ -38,6 +38,8 @@ def bytes_to_unicode():
     return dict(zip(bytes_list, printble))
 
 printable_dict = bytes_to_unicode()
+revert_dict = {v: k for k, v in printable_dict.items()}
+
 
 def split_by_special(text, special_tokens, drop_special=True):
 
@@ -234,7 +236,7 @@ class BPETokenizer(object):
         while len(vocab) < self.vocab_size:
             sorted_pairs = sorted(pair_count.items(), key=lambda x: (x[1], x[0]), reverse=True)
             select_top_pair = sorted_pairs[0]
-            # print(f"Current vocab size: {vocab_index}; current top 10 pair: {sorted_pairs[:10]}; ")
+            print(f"Current vocab size: {vocab_index} \r")
             self.update_pair_count_and_pair_index(pair_count, pair_index, select_top_pair, vocab, vocab_out, vocab_index, merges, merges_out)
             vocab_index += 1
         
@@ -245,6 +247,12 @@ class BPETokenizer(object):
         f = codecs.open(self.merge_path, "w", encoding="utf-8")
         f.write(json.dumps(merges_out, ensure_ascii=False, indent=4))
         f.close()
+
+        test_vocab, test_vocab_byte2index = self.convert_printable_vocab_to_memory(vocab_out)
+        test_merge, test_merge_byte2index = self.convert_printable_merge_to_memory(merges_out)
+
+        assert test_vocab == vocab
+        assert test_merge == merges
 
         return vocab, merges
 
@@ -268,6 +276,7 @@ class BPETokenizer(object):
         top_pair = select_top_pair[0]
 
         merge_byte = top_pair[0] + top_pair[1]
+
         merge_str = ''.join(printable_dict[byte] if byte < 256 else chr(byte) for byte in top_pair[0]) + " " + ''.join(printable_dict[byte] if byte < 256 else chr(byte) for byte in top_pair[1])
         vocab_str = ''.join(printable_dict[byte] if byte < 256 else chr(byte) for byte in merge_byte)
         if merge_str not in merges_out:
@@ -375,18 +384,35 @@ class BPETokenizer(object):
 
         with open(self.vocab_path, "r", encoding="utf-8") as f:
             vocab_json = json.load(f)
-            for k, v in vocab_json.items():
-                self.vocab[int(k)] = v.encode("utf-8", errors="ignore")
-                self.vocab_byte2index[v.encode("utf-8", errors="ignore")] = int(k)
+            self.vocab, self.vocab_byte2index = self.convert_printable_vocab_to_memory(vocab_json)
 
         with open(self.merge_path, "r", encoding="utf-8") as f:
             merge_json = json.load(f)
-            for one_merge_str in merge_json:
-                token_strs = one_merge_str.split(" ")
-                token_bytes = (b"".join(bytes([int(printable_dict.index(c))]) if c in printable_dict.values() else c.encode("utf-8") for c in token_strs[0].split()), 
-                            b"".join(bytes([int(printable_dict.index(c))]) if c in printable_dict.values() else c.encode("utf-8") for c in token_strs[1].split()))
-                self.merge.append(token_bytes)
-                self.merge_byte2index[token_bytes] = len(self.merge_byte2index)
+            self.merge, self.merge_byte2index = self.convert_printable_merge_to_memory(merge_json)
+
+    def convert_printable_vocab_to_memory(self, vocab_json):
+
+        vocab = {}
+        vocab_byte2index = {}
+        for k, v in vocab_json.items():
+            token_byte = b"".join(bytes([int(revert_dict[c])]) if c in printable_dict.values() else c.encode("utf-8") for c in v)
+            vocab[int(k)] = token_byte
+            vocab_byte2index[token_byte] = int(k)
+
+        return vocab, vocab_byte2index
+
+    def convert_printable_merge_to_memory(self, merge_json):
+
+        merge = []
+        merge_byte2index = {}
+        for one_merge_str in merge_json:
+            token_strs = one_merge_str.split(" ")
+            token_bytes = (b"".join(bytes([int(revert_dict[c])]) if c in printable_dict.values() else c.encode("utf-8") for c in token_strs[0]), 
+                        b"".join(bytes([int(revert_dict[c])]) if c in printable_dict.values() else c.encode("utf-8") for c in token_strs[1]))
+            merge.append(token_bytes)
+            merge_byte2index[token_bytes] = len(merge_byte2index)
+
+        return merge, merge_byte2index
 
     def encode(self, text):
 
