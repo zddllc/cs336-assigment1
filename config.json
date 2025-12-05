@@ -5,7 +5,10 @@
     "TrainData":"/home/chenli/Code/cs336-data/TinyStoriesV2-GPT4-train.txt",
     "VocabSize": 10000,
     "SpecialTokens":["<endoftext>"],
-    "EmbeddingSize":1024,
-    "BatchSize":16,
-    "ContextLength":128
+    "EmbeddingSize":2048,
+    "BatchSize":32,
+    "ContextLength":128,
+    "LayerNum":64,
+    "HeadNum":32,
+    "DFF": 4096
 }

@@ -11,7 +11,7 @@
             "console": "integratedTerminal",
 
             //"module": "pytest",
-            //"args": ["-k", "test_tokenizer", "-vv"],
+            //"args": ["-k", "test_model", "-vv"],
 
             "program": "./main.py",
             "args":["config.json"]
